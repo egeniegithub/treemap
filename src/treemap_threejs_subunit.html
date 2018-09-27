@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Treemap using Subunit</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=0">
+    <link rel="stylesheet" type="text/css" href="../lib/bower_components/subunit/demos/css/style.css">
+</head>
+<body>
+<div id="info">
+    <h3>Treemap Using SubUnit - WebGL Demo</h3>
+    <div id="msg">Click a cell...</div>
+</div>
+<script src="../lib/bower_components/threejs/build/three.js"></script>
+<script src="../lib/bower_components/subunit/demos/bower_components/stats.js/build/stats.min.js"></script>
+<script src="../lib/bower_components/subunit/demos/bower_components/d3/d3.js"></script>
+<script src="../lib/bower_components/subunit/demos/bower_components/tweenjs/build/tween.min.js"></script>
+<script src="../lib/threejs/examples/js/controls/TrackballControls.js"></script>
+<script src="../lib/bower_components/subunit/dist/subunit.js"></script>
+<script src="../lib/bower_components/traceur/traceur.js"></script>
+<script src="../lib/bower_components/traceur/bootstrap.js"></script>
+<script type="module">
+  import { camera, scene, canvas, renderer, stats } from 'modules/scene';
+  import { raycast } from 'modules/events';
+
+  var carpet = THREE.ImageUtils.loadTexture('images/carpet.jpg', null, function () {
+    canvas.transition().duration(2000)
+      .style("opacity", 1);
+
+    d3.select("#loading").transition().duration(2000)
+      .style("opacity", 0).remove();
+  });
+
+  d3.json('data/demo_data_04.json', function (err, data) {
+
+    var _width = 1000;
+    var _height = 600;
+
+    var treemap = d3.layout.treemap()
+          .size([_width,_height])
+          .value(function(d) {
+              return d["size"];
+          });
+    var nodes = treemap.nodes(data).filter(function(d) { return d.id !== "Company"; });
+    var size = [_width, _height] // Width, Height
+    var cscale = d3.scale.category10();
+    var zscale = d3.scale.linear()
+        .range([5, 300])
+        .domain(d3.extent(data.children, function(d) { return d.size; }));
+
+    var color1 = new THREE.MeshPhongMaterial({color: '#ff0000'});
+    var backing = new THREE.BoxGeometry(size[0], size[1], 100);
+
+    var root = SubUnit.select(scene);
+    var container = root.append("object");
+    
+
+    var cells = container.selectAll("cell")
+      .data(nodes).enter()
+      .append("mesh")
+      .attr("tags", "bar")
+      .attr("material", function(d) {
+          d.baseMaterial = new THREE.MeshPhongMaterial({color: cscale(d.id), shininess: 100});
+          return d.baseMaterial;
+      })
+      .attr("geometry", function (d) {
+        var w = Math.max(0, d.dx-1);
+        var h = Math.max(0, d.dy-1);
+        var depth = d.size ? zscale(d.size) : 0;
+        return new THREE.BoxGeometry(w, h, depth);
+      })
+      .each(function (d, i) {
+        var x0 = d.x + (d.dx / 2) - _width/2;
+        var y0 = d.y + (d.dy / 2) - _height/2;
+        var z0 = d.size ? zscale(d.size)/2 : 0;
+        this.position.set(x0, y0, z0);
+      })
+      .on('click', function (event, d) {
+        d3.select("#msg").html("id: " + d.id);
+        if (this.material === color1) {
+          this.material = d.baseMaterial;
+        } else {
+          this.material = color1;
+        }
+      });
+
+    camera.position.z = 2500;
+
+    raycast(camera, d3.merge(cells), 'click');
+
+    var cntrl = new THREE.TrackballControls(camera, renderer.domElement);
+    cntrl.rotateSpeed = 0.5;
+    cntrl.minDistance = 100;
+    cntrl.maxDistance = 6000;
+
+
+    function animate() {
+      stats.update();
+      cntrl.update();
+      TWEEN.update();
+
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  });
+</script>
+</body>
+</html>
